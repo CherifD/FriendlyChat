@@ -16,6 +16,7 @@
 package com.google.firebase.udacity.friendlychat;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -23,6 +24,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -35,6 +37,10 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.ChildEventListener;
@@ -43,6 +49,8 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
 
     //Declare Firebase storage object
     private FirebaseStorage mFirebaseStorage;
+    private StorageReference mChatPhotoStorageReference;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +101,8 @@ public class MainActivity extends AppCompatActivity {
         //Get a reference to the root then call child("messages") to get reference to the
         //messages node
         mMessagesDatabaseReference = mFirebaseDatabase.getReference().child("messages");
+        // Instantiate the Firebase StorageReference object
+        mChatPhotoStorageReference = mFirebaseStorage.getReference().child("chat_photos");
 
 
         // Initialize references to views
@@ -115,10 +126,9 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 // TODO: Fire an intent to show an image picker
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.setType("image/jpeg");
+                intent.setType("image/*");
                 intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
                 startActivityForResult(Intent.createChooser(intent, "Complete action using"), RC_PHOTO_PICKER);
-
             }
         });
 
@@ -191,14 +201,14 @@ public class MainActivity extends AppCompatActivity {
         if (mAuthStateListener != null) {
             mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
         }
+        detachDatabaseReadListener();
+        mMessageAdapter.clear();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
-        detachDatabaseReadListener();
-        mMessageAdapter.clear();
     }
 
     @Override
@@ -210,9 +220,50 @@ public class MainActivity extends AppCompatActivity {
             } else if (resultCode == RESULT_CANCELED) {
                 Toast.makeText(this, "Cancelled sign-in.", Toast.LENGTH_SHORT).show();
                 finish();
+            } else if (requestCode == RC_PHOTO_PICKER && resultCode == RESULT_OK) {
+                Uri selectedImageUri = data.getData(); //local uri
+
+                // Get a reference to store file at chat_photos/<FILENAME> // this is the remote uri
+                final StorageReference photoRef = mChatPhotoStorageReference.child(selectedImageUri.getLastPathSegment());
+
+                // Upload file to Firebase Storage
+                photoRef.putFile(selectedImageUri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
+                    @Override
+                    public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
+                        if (!task.isSuccessful()) {
+                            throw task.getException();
+                        }
+                        return photoRef.getDownloadUrl();
+                    }
+                }).addOnCompleteListener(new OnCompleteListener<Uri>() {
+                    @Override
+                    public void onComplete(@NonNull Task<Uri> task) {
+                        if (task.isSuccessful()) {
+                            Uri downloadUri = task.getResult();
+                            FriendlyMessage friendlyMessage = new FriendlyMessage(null, mUsername, downloadUri.toString());
+                            mMessagesDatabaseReference.push().setValue(friendlyMessage);
+                        } else {
+                            Toast.makeText(MainActivity.this, "upload failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+                /*photoRef.putFile(selectedImageUri)
+                        .addOnSuccessListener(this, new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                                // When the image has successfully uploaded, we get its download URL
+                                Uri downloadUrl = taskSnapshot.getStorage().getDownloadUrl().getResult();
+                                //Uri downloadUrl = photoRef.getDownloadUrl().getResult();
+                                Log.i("dowloadUri!!", "the dowloadURi is " + downloadUrl);
+
+                                // Set the download URL to the message box, so that the user can send it to the database
+                                FriendlyMessage friendlyMessage = new FriendlyMessage(null, mUsername, downloadUrl.toString());
+                                mMessagesDatabaseReference.push().setValue(friendlyMessage);
+                            }
+                        });*/
             }
         }
     }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

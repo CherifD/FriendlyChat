@@ -2,6 +2,7 @@ package com.google.firebase.udacity.friendlychat;
 
 import android.app.Activity;
 import android.content.Context;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -37,6 +38,7 @@ public class MessageAdapter extends ArrayAdapter<FriendlyMessage> {
                     .load(message.getPhotoUrl())
                     .into(photoImageView);
         } else {
+            Log.e("MessageAddapter", "Null photo url!!!!!!!!!!!!");
             messageTextView.setVisibility(View.VISIBLE);
             photoImageView.setVisibility(View.GONE);
             messageTextView.setText(message.getText());
