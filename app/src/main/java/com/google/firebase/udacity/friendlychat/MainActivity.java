@@ -220,7 +220,8 @@ public class MainActivity extends AppCompatActivity {
             } else if (resultCode == RESULT_CANCELED) {
                 Toast.makeText(this, "Cancelled sign-in.", Toast.LENGTH_SHORT).show();
                 finish();
-            } else if (requestCode == RC_PHOTO_PICKER && resultCode == RESULT_OK) {
+            }
+        } else if (requestCode == RC_PHOTO_PICKER && resultCode == RESULT_OK) {
                 Uri selectedImageUri = data.getData(); //local uri
 
                 // Get a reference to store file at chat_photos/<FILENAME> // this is the remote uri
@@ -247,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 });
+
                 /*photoRef.putFile(selectedImageUri)
                         .addOnSuccessListener(this, new OnSuccessListener<UploadTask.TaskSnapshot>() {
                             public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
@@ -260,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
                                 mMessagesDatabaseReference.push().setValue(friendlyMessage);
                             }
                         });*/
-            }
+
         }
     }
 
